@@ -1,0 +1,15 @@
+from enum import Enum
+
+
+class DocumentStatus(str, Enum):
+
+    CREATED = "CREATED"
+    UPLOADED = "UPLOADED"
+    PROCESSING = "PROCESSING"
+    PARSING = "PARSING"
+    CHUNKING = "CHUNKING"
+    EMBEDDING = "EMBEDDING"
+    CHAT_READY = "CHAT_READY"
+    ANALYZING = "ANALYZING"
+    COMPLETED = "COMPLETED"
+    FAILED = "FAILED"

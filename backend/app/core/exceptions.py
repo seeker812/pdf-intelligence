@@ -1,52 +1,71 @@
-import logging
-
-from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse
-
-logger = logging.getLogger(__name__)
+from enum import Enum
 
 
-class AppException(Exception):
-    def __init__(self, message: str, status_code: int = 400, code: str = "APP_ERROR") -> None:
+class ErrorCode(str, Enum):
+    BAD_REQUEST = "BAD_REQUEST"
+    UNAUTHORIZED = "UNAUTHORIZED"
+    FORBIDDEN = "FORBIDDEN"
+    NOT_FOUND = "NOT_FOUND"
+    INTERNAL_SERVER_ERROR = "INTERNAL_SERVER_ERROR"
+    SERVICE_UNAVAILABLE = "SERVICE_UNAVAILABLE"
+    DOCUMENT_PROCESSING_ERROR = "DOCUMENT_PROCESSING_ERROR"
+    CONFLICT = "CONFLICT"
+
+
+class ErrorStatus(int, Enum):
+    BAD_REQUEST = 400
+    UNAUTHORIZED = 401
+    FORBIDDEN = 403
+    NOT_FOUND = 404
+    INTERNAL_SERVER_ERROR = 500
+    SERVICE_UNAVAILABLE = 503
+    CONFLICT = 409
+
+
+class AppBaseException(Exception):
+    status_code: int = ErrorStatus.INTERNAL_SERVER_ERROR
+    code: str = ErrorCode.INTERNAL_SERVER_ERROR
+
+    def __init__(self, message: str) -> None:
         self.message = message
-        self.status_code = status_code
-        self.code = code
         super().__init__(message)
 
 
-class DocumentProcessingError(Exception):
-    pass
+class ConflictException(AppBaseException):
+    status_code = ErrorStatus.CONFLICT
+    code: str = ErrorCode.CONFLICT
 
 
-def register_exception_handlers(app: FastAPI) -> None:
-    @app.exception_handler(AppException)
-    async def app_exception_handler(_: Request, exc: AppException) -> JSONResponse:
-        return JSONResponse(
-            status_code=exc.status_code,
-            content={
-                "success": False,
-                "error": {"code": exc.code, "message": exc.message},
-            },
-        )
+class BadRequestException(AppBaseException):
+    status_code = ErrorStatus.BAD_REQUEST
+    code = ErrorCode.BAD_REQUEST
 
-    @app.exception_handler(DocumentProcessingError)
-    async def document_processing_error_handler(_: Request, exc: DocumentProcessingError) -> JSONResponse:
-        logger.exception("Document processing error: %s", exc)
-        return JSONResponse(
-            status_code=500,
-            content={
-                "success": False,
-                "error": {"code": "DOCUMENT_PROCESSING_ERROR", "message": "Document processing failed"},
-            },
-        )
 
-    @app.exception_handler(Exception)
-    async def unhandled_exception_handler(_: Request, exc: Exception) -> JSONResponse:
-        logger.exception("Unhandled application exception")
-        return JSONResponse(
-            status_code=500,
-            content={
-                "success": False,
-                "error": {"code": "INTERNAL_SERVER_ERROR", "message": "An unexpected error occurred"},
-            },
-        )
+class UnAuthorizedException(AppBaseException):
+    status_code = ErrorStatus.UNAUTHORIZED
+    code = ErrorCode.UNAUTHORIZED
+
+
+class ForbiddenException(AppBaseException):
+    status_code = ErrorStatus.FORBIDDEN
+    code = ErrorCode.FORBIDDEN
+
+
+class RecordNotFoundException(AppBaseException):
+    status_code = ErrorStatus.NOT_FOUND
+    code = ErrorCode.NOT_FOUND
+
+
+class InternalServerError(AppBaseException):
+    status_code = ErrorStatus.INTERNAL_SERVER_ERROR
+    code = ErrorCode.INTERNAL_SERVER_ERROR
+
+
+class ServiceUnavailableError(AppBaseException):
+    status_code = ErrorStatus.SERVICE_UNAVAILABLE
+    code = ErrorCode.SERVICE_UNAVAILABLE
+
+
+class DocumentProcessingError(AppBaseException):
+    status_code = ErrorStatus.INTERNAL_SERVER_ERROR
+    code = ErrorCode.DOCUMENT_PROCESSING_ERROR

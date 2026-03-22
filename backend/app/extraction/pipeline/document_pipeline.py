@@ -3,64 +3,86 @@ import logging
 from backend.app.extraction.preprocessing.docling_parser import DoclingParser
 from backend.app.extraction.preprocessing.markdown_cleaner import MarkdownCleaner
 from backend.app.extraction.preprocessing.chunking import ChunkingService
-
 from backend.app.extraction.embeddings.embedding_service import EmbeddingService
 from backend.app.extraction.vector_store.qdrant_service import QdrantService
-
 from backend.app.extraction.analysis.document_analyzer import DocumentAnalyzer
+from backend.app.extraction.analysis.schemas import DocumentIntelligence
 
 logger = logging.getLogger(__name__)
 
 
 class DocumentPipeline:
-    """
-    Orchestrates the full document processing pipeline.
-    """
 
-    def __init__(self):
+    def __init__(
+        self,
+        parser: DoclingParser,
+        cleaner: MarkdownCleaner,
+        chunker: ChunkingService,
+        embedder: EmbeddingService,
+        vector_store: QdrantService,
+        analyzer: DocumentAnalyzer,
+    ) -> None:
+        self.parser = parser
+        self.cleaner = cleaner
+        self.chunker = chunker
+        self.embedder = embedder
+        self.vector_store = vector_store
+        self.analyzer = analyzer
 
-        self.parser = DoclingParser()
-        self.cleaner = MarkdownCleaner()
-        self.chunker = ChunkingService()
+    def parse_and_chunk(self, file_path: str, document_id: str) -> dict:
+        """
+        Parses the file and splits text into chunks.
 
-        self.embedder = EmbeddingService()
-        self.vector_store = QdrantService()
-
-        self.analyzer = DocumentAnalyzer()
-
-    def process_document(self, file_path: str, document_id: str):
-        logger.info("Starting document processing for %s", document_id)
-
-        # 1️⃣ Parse document
+        Returns clean_text and chunks without embedding so the processor
+        can immediately hand chunks to the DB-save thread while the
+        embed thread runs concurrently.
+        """
+        logger.info("Parsing document_id=%s", document_id)
         markdown = self.parser.parse(file_path)
-        logger.info("Document parsed for %s", document_id)
 
-        # 2️⃣ Clean markdown
         clean_text = self.cleaner.clean(markdown)
-        logger.info("Markdown cleaned for %s", document_id)
+        logger.info(
+            "Cleaned document_id=%s char_count=%d",
+            document_id,
+            len(clean_text),
+        )
 
-        # 3️⃣ Chunk document
         chunks = self.chunker.chunk(clean_text)
-        logger.info("Generated %s chunks for %s", len(chunks), document_id)
+        logger.info(
+            "Chunked document_id=%s chunk_count=%d",
+            document_id,
+            len(chunks),
+        )
 
-        # 4️⃣ Generate embeddings
+        return {"clean_text": clean_text, "chunks": chunks}
+
+    def embed_and_store(self, chunks: list[str], document_id: str) -> None:
+        """
+        Embeds chunks in parallel batches then stores vectors in Qdrant.
+
+        Called from a worker thread in the processor — runs concurrently
+        with the DB chunk save. No DB session needed here.
+        """
+        logger.info("Embedding document_id=%s chunks=%d", document_id, len(chunks))
         embeddings = self.embedder.embed_chunks(chunks)
-        logger.info("Embeddings generated for %s", document_id)
 
-        # 5️⃣ Store vectors
         self.vector_store.store_chunks(
             document_id=document_id,
             chunks=chunks,
-            embeddings=embeddings
+            embeddings=embeddings,
         )
-        logger.info("Chunks stored in vector database for %s", document_id)
+        logger.info("Vectors stored document_id=%s", document_id)
 
-        # 6️⃣ Run AI analysis
-        analysis_result = self.analyzer.analyze(clean_text[:15000])
-        logger.info("Document analysis completed for %s", document_id)
-
-        return {
-            "analysis": analysis_result,
-            "chunk_count": len(chunks),
-            "chunks": chunks,
-        }
+    def run_phase_two(self, clean_text: str, document_id: str) -> DocumentIntelligence:
+        """
+        Runs LLM analysis on the full document text.
+        DocumentAnalyzer selects direct or map-reduce strategy automatically.
+        """
+        logger.info(
+            "Phase 2 started document_id=%s char_count=%d",
+            document_id,
+            len(clean_text),
+        )
+        analysis = self.analyzer.analyze(clean_text)
+        logger.info("Phase 2 complete document_id=%s", document_id)
+        return analysis

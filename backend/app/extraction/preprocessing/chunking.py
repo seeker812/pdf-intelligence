@@ -3,7 +3,7 @@ from langchain_text_splitters import MarkdownHeaderTextSplitter
 
 class ChunkingService:
     """
-    Splits markdown documents into semantic chunks.
+    Splits Markdown documents into semantic chunks.
     """
 
     def __init__(self):

@@ -1,4 +1,4 @@
-from app.api.v1.models.response.document_response import (
+from backend.app.api.v1.models.response.document_response import (
     AskQuestionResponse,
     DocumentChunkResponse,
     DocumentInsightResponse,

@@ -11,7 +11,7 @@ class DoclingParser:
 
     def parse(self, file_path: str) -> str:
         """
-        Parse PDF file and return markdown representation.
+        Parse PDF file and return Markdown representation.
         """
 
         result = self.converter.convert(file_path)
