@@ -4,9 +4,13 @@ sqlalchemy==2.0.38
 pydantic==2.10.6
 pydantic-settings==2.7.1
 python-dotenv==1.0.1
+python-multipart
+psycopg2-binary
 
 docling
 langchain
 langchain-openai
+langchain-google-genai
 qdrant-client
 langchain-text-splitters
+google-genai
